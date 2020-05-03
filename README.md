@@ -3,7 +3,7 @@
 This is a project to track neighbourhood-level inequalities across cities that are releasing spatially dis-aggregated data.
 
 
-##Data
+## Data ##
 
 All_cities_zip.csv includes data by zipcode for 6 cities - Seattle, Boston, New York City, Detroit, Philadelphia and Chicago obtained between 24th and 28th April. The geographical identifier is "custom_zip", which is different from a zip code because Boston aggregates some zipcodes. 
 
