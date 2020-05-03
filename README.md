@@ -9,3 +9,4 @@ All_cities_zip.csv includes data by zipcode for 6 cities - Seattle, Boston, New 
 
 To merge to zip-code level covariate data, use the zip_lookup.csv which maps the custom-zips to actual zips. Due to Boston's aggregation, some custom-zips are repeated. Join zip-code level data to the lookup table, group by and summarize by custom-zip (mean, pop weighted mean or sum depending on the variable), and then join to case data in All_cities_zip.
 
+P.S. Be careful if you are opening csv in Excel to take a peek and resaving. Leading zeroes in zipcodes may be dropped.
