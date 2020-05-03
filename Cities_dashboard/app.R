@@ -5,6 +5,7 @@ library(lubridate)
 library(ggplot2)
 library(googlesheets4)
 library(DT)
+options(scipen = 999)
 
 
 #Authenticate Google Sheets
@@ -124,6 +125,9 @@ server <- function(input, output){
   
   time_graph_data <- reactive({
     data2 <- filter(data2(), City %in% input$city_select)
+    if(input$x_axis=="Date_from_100"){
+      data2 <- filter(data2, Date_from_100 >= 0)
+    }
     data2
   })
   
@@ -140,7 +144,7 @@ server <- function(input, output){
       plot <- plot + labs(y="Cases per 100,000 people")
     }
     if(input$x_axis=="Date_from_100"){
-      plot <- plot + xlim(0, NA) + labs(x="Days from 100th case")
+      plot <- plot + labs(x="Days from 100th case") 
     }
     plot
   })
