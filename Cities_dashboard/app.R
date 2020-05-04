@@ -17,7 +17,7 @@ ui <- dashboardPage(
   
   
   
-  dashboardHeader(title = "COVID-19 Cities Dashbaord"),
+  dashboardHeader(title = "COVID-19 Cities Dashboard"),
   
   
   
