@@ -1,0 +1,224 @@
+---
+title: "Merging Case, ACS and 500 Cities Data"
+output: html_notebook
+---
+
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(tidycensus)
+library(tidyr)
+options(scipen=10000)
+```
+
+
+Get case data by zip, and zip lookup table
+```{r}
+
+city_zips <- read_csv("city_zips.csv")
+cases_zip_data <- read_csv("All_cities_zip.csv") %>% select(1:5) 
+```
+
+Get ACS estimates for each ZCTA involved
+
+% crowding, 
+% Population of Color
+% Population below poverty
+% Essential workers
+% elderly
+% lacking health insurance
+% public transit
+
+Get list of variables from ACS 2014-18 at ZCTA level.
+```{r}
+vars <-load_variables(year=2018, "acs5")
+```
+
+Know what I want
+Get and set up a Census API from https://api.census.gov/data/key_signup.html
+
+```{r}
+census_api_key("c03dbff727c9699cb8ccb3282d07867739a8afef")
+
+
+vars <- c(# Essential industry workers
+  "C24010_001", "C24010_012", "C24010_016", "C24010_020", "C24010_021", "C24010_024",
+          "C24010_025",
+          "C24010_030", "C24010_034", 
+          "C24010_048", "C24010_052", "C24010_056", "C24010_057", "C24010_060", "C24010_061",
+          "C24010_066", "C24010_070", 
+          # median household income
+          "B19013_001",
+          # below poverty, and # total
+          "B17001_002", "B17001_001",
+          # overcrowding denominator
+          "B25014_001", 
+          #overcrowding 1 to 1.5
+          "B25014_005", "B25014_011",
+          #overcrowding 1.5 to 2
+          "B25014_006", "B25014_012",
+          #overcrowding 2more
+          "B25014_007", "B25014_013",
+          # total population, # total non white non hispanic, 
+          "B01003_001", "B01001H_001",
+          #  60-70 male
+          "B01001_018", "B01001_019", "B01001_020", "B01001_021", 
+          # > 70 male
+          "B01001_022", "B01001_023", "B01001_024", "B01001_025",
+          # 60-70 female
+          "B01001_042", "B01001_043", "B01001_044", "B01001_045", 
+          # > 70 female
+          "B01001_046", "B01001_047", "B01001_048", "B01001_049", 
+          # public transit excluding taxicab
+          "B08006_001","B08006_008",
+          # health insurance (uninsured)
+          "B27010_001","B27010_017", "B27010_033", "B27010_050", "B27010_066",
+          #Total, #Entered after 2010, foreign born not a citizen
+          "B05005_001", "B05005_006",
+          #Total, #Not citizen
+          "B05001_001", "B05001_006"
+          ) 
+
+
+
+```
+
+Get the data
+```{r}
+covar_zip_data_raw <- get_acs(geography = "zcta",
+                      variables=vars, cache_table = TRUE) 
+
+
+```
+
+
+Get population data at census tract level as well to be able to aggregate 500 Cities data up to ZCTA level.
+```{r}
+tract_pop_data <- get_acs(geography = "tract", variables = "B01003_001",
+                          state=c("Washington", "Illinois", "Michigan", "New York", "Pennsylvania", "Massachusetts"),
+                          year=2018) 
+
+tract_pop_data <- tract_pop_data %>%
+  select(GEOID, variable, estimate) %>% 
+  spread(variable, estimate) %>%
+  rename(total_pop=B01003_001) %>%
+  select(GEOID, total_pop) %>% mutate(GEOID = as.character(GEOID))
+
+```
+
+
+Transform the ACS data to create variables of interest
+```{r}
+covar_zip_data <- covar_zip_data_raw %>%
+  select(GEOID, variable, estimate) %>% 
+  filter(GEOID %in% city_zips$ZCTA5) %>%
+  spread(variable, estimate) %>% 
+  rowwise() %>% 
+  
+  # create indicators
+  mutate(mhi=B19013_001,
+         
+         pct_pov = B17001_002/B17001_001,
+         
+         pct_col =  (B01003_001 - B01001H_001) / B01003_001,
+         
+         total_pop = B01003_001,
+         
+         pct_unins=sum(c(B27010_017, B27010_033, B27010_050, B27010_066))/B27010_001,
+         
+         pct_essworkers=sum(c(C24010_012, C24010_016, C24010_020, C24010_021, C24010_024, C24010_025,
+          C24010_030, C24010_034, 
+          C24010_048, C24010_052, C24010_056, C24010_057, C24010_060, C24010_061,
+          C24010_066, C24010_070))/C24010_001,
+         
+         pct_overcrowded=sum(c(B25014_007, B25014_006,B25014_005,
+                                B25014_011,B25014_012, B25014_013))/B25014_001,
+         
+         pct_transit=B08006_008/B08006_001,
+         
+         pct_old=sum(c(B01001_018, B01001_019, B01001_020, B01001_021, 
+          B01001_022, B01001_023, B01001_024, B01001_025,
+          B01001_042, B01001_043, B01001_044, B01001_045,
+          B01001_046, B01001_047, B01001_048, B01001_049)/B01003_001),
+         
+         pct_new_imm=B05005_006/B05005_001,
+         pct_non_cit=B05001_006/B05001_001,
+         
+         GEOID=as.character(GEOID)) %>% 
+  select(GEOID, mhi, pct_pov, pct_col, total_pop, pct_unins, pct_essworkers, pct_overcrowded, pct_transit,
+         pct_old, pct_new_imm, pct_non_cit)
+```
+
+Get health data downloaded from RWJF City Health Dashboard website (500 Cities). 
+https://www.cityhealthdashboard.com/
+I dowloaded the state files from the RWJF website, but they also have an API
+Used prevalence of high blood pressure and diabetes from their data
+
+The 500 Cities data is at census tract level, so need the ZCTA - CT relationship file from the census website: https://www.census.gov/geographies/reference-files/2010/geo/relationship-files.html#par_textimage_674173622  (zcta_tract_rel_10.csv)
+```{r}
+
+geog_file <- read_csv("zcta_tract_rel_10.csv") %>% select(ZCTA5, GEOID) %>% mutate(GEOID=as.character(GEOID))
+health_data_raw <- do.call(rbind,
+          lapply(paste0("Health_data/", (list.files(path = "Health_data/"))), read.csv)) %>%
+  filter(city_name %in% c("New York", "Chicago", "Seattle", "Philadelphia",  "Detroit", "Boston")) %>%
+  filter(metric_number %in% c(6,9)) %>%
+  mutate(stcotr_fips = as.character(stcotr_fips)) %>%
+  left_join(geog_file, by=c("stcotr_fips"="GEOID")) %>%
+  left_join(tract_pop_data, by=c("stcotr_fips"="GEOID")) %>%
+  right_join(city_zips, by=c("ZCTA5")) %>%
+  group_by(city_name, metric_name, zip)
+  
+  
+health_data <- health_data_raw %>%
+  summarise(est_weight = weighted.mean(est, total_pop, na.rm = TRUE),
+            pop_total=sum(total_pop)) %>%
+  mutate(est_weight=ifelse(is.nan(est_weight), 0, est_weight)) %>%
+  spread(metric_name, est_weight) %>% 
+  rename(pct_diabetes = Diabetes, pct_hbp = `High blood pressure`) %>%
+  select(zip, city_name, pct_diabetes, pct_hbp)
+  
+```
+
+Merge data. 
+```{r}
+all_data <- covar_zip_data %>% 
+  left_join(city_zips, by=c("GEOID"="ZCTA5")) %>% filter(GEOID != "98195") %>%
+  group_by(zip) %>%
+  summarise(mhi = weighted.mean(mhi, total_pop, na.rm = TRUE),
+            pct_pov = weighted.mean(pct_pov, total_pop, na.rm = TRUE),
+            pct_col = weighted.mean(pct_col, total_pop, na.rm = TRUE),
+            pct_unins = weighted.mean(pct_unins, total_pop, na.rm = TRUE),
+            pct_essworkers = weighted.mean(pct_essworkers, total_pop, na.rm = TRUE),
+            pct_overcrowded = weighted.mean(pct_overcrowded, total_pop, na.rm = TRUE),
+            pct_transit = weighted.mean(pct_transit, total_pop, na.rm = TRUE),
+            pct_old = weighted.mean(pct_old, total_pop, na.rm = TRUE),
+            pct_new_imm = weighted.mean(pct_new_imm, total_pop, na.rm = TRUE),
+            pct_non_cit = weighted.mean(pct_non_cit, total_pop, na.rm = TRUE),
+            total_pop = sum(unique(total_pop), na.rm = TRUE)) %>%
+  left_join(health_data, by=c("zip")) %>% 
+  filter(!is.na(city_name)) %>%
+  left_join(cases_zip_data, by="zip")
+```
+
+Group City, and create quintiles of each variable
+```{r}
+all_data_quint <- all_data %>% ungroup() %>%
+  group_by(city_name) %>% 
+  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
+  mutate_at(vars(mhi:pct_hbp), ~factor(findInterval(., c(-Inf,
+                               quantile(., probs=c(0.2, 0.4, 0.6, 0.8), na.rm = TRUE), Inf)),
+                               labels=c("Q1","Q2","Q3","Q4", "Q5"))) %>%
+  pivot_longer(mhi:pct_hbp, names_to="var", values_to="value")
+
+
+```
+
+Write data
+
+```{r}
+
+```
+
+
