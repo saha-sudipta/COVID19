@@ -11,6 +11,7 @@ library(dplyr)
 library(lubridate)
 library(tidyr)
 library(epitools)
+library(lme4)
 options(scipen=10000)
 ```
 
@@ -98,7 +99,7 @@ ggplot(filter(quint_summaries, value=="Q1" | value=="Q5"), aes(group=city)) +
   theme_minimal() 
 ```
 
-
+Create long format of all data
 
 ```{r}
 all_data_long <- all_data %>% 
@@ -111,7 +112,7 @@ all_data_long <- all_data %>%
 
 ```
 
-
+Plot linear trends for all data 
 ```{r}
 ggplot(filter(all_data_long), aes(group=city)) +
   geom_point(aes(x=value, y=case_rate, color=city), alpha=0.2, size=0.5) +
@@ -135,5 +136,43 @@ ggplot(filter(all_data_long), aes(group=city)) +
   theme_minimal() 
 ```
 
+Create dataset to fit multilevel models
+```{r}
+model_data <- all_data %>% ungroup() %>%
+  group_by(city_name) %>% 
+  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
+  mutate_at(vars(mhi:pct_hbp), ~factor(findInterval(., c(-Inf,
+                               quantile(., probs=c(0.2, 0.4, 0.6, 0.8), na.rm = TRUE), Inf)),
+                               labels=c("Q1","Q2","Q3","Q4", "Q5")))
+```
 
+
+Loop through variables and fit individual models for each variable and store Q5/Q1 RR and signficance
+
+```{r}
+#intialize empty dataframe
+results <- data.frame(var=NA, Q1=NA, Q5=NA, RR=NA, Sig=NA, Pval=NA)
+
+for (i in names(model_data[,4:15])){
+  #initialize empty dataframe
+  results1 <- data.frame(var=NA, Q1=NA, Q5=NA, RR=NA, Sig=NA, Pval=NA)
+  
+  #Formula with random intercepts for each city and poisson model
+  formula = as.formula(paste("positives ~ 1 +", i, 
+                             "+ (1|city) + offset(log(total_pop))"))
+  model = glmer(formula, family="poisson", data=model_data)
+  
+  results1$var <- i
+  results1$Q1 = exp(data.frame(coef(summary(model)))[1,]$Estimate)
+  results1$RR = exp(data.frame(coef(summary(model)))[5,]$Estimate)
+  results1$Q5 = results1$Q1 * results1$RR
+  results1$Sig = data.frame(coef(summary(model)))[5,]$Pr...z.. < 0.05
+  results1$Pval = round(data.frame(coef(summary(model)))[5,]$Pr...z..,4)
+  results <- rbind(results, results1)
+}
+```
+
+```{r}
+results
+```
 
