@@ -176,3 +176,12 @@ for (i in names(model_data[,4:15])){
 results
 ```
 
+
+```{r}
+model_all = glmer(positives ~ 1 + pct_col + pct_diabetes + pct_essworkers + pct_hbp + pct_new_imm + pct_overcrowded + pct_pov + pct_old + pct_transit + pct_unins + (1|city) + offset(log(total_pop)), family="poisson", data=model_data)
+```
+
+```{r}
+summary(model_all)
+```
+
