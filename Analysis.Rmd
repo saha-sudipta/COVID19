@@ -1,0 +1,139 @@
+---
+title: "Analysis of Disparities"
+output: html_notebook
+---
+Read in data
+
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(epitools)
+options(scipen=10000)
+```
+
+```{r}
+all_data <- read_csv("Data/data_May3.csv")
+```
+
+Group City, and create quintiles of each variable
+```{r}
+all_data_quint <- all_data %>% ungroup() %>%
+  group_by(city_name) %>% 
+  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
+  mutate_at(vars(mhi:pct_hbp), ~factor(findInterval(., c(-Inf,
+                               quantile(., probs=c(0.2, 0.4, 0.6, 0.8), na.rm = TRUE), Inf)),
+                               labels=c("Q1","Q2","Q3","Q4", "Q5"))) %>%
+  pivot_longer(mhi:pct_hbp, names_to="var", values_to="value")
+
+
+```
+
+Calculate rates and CIs
+```{r}
+quint_summaries <- all_data_quint %>% ungroup() %>%
+  group_by(city, var, value) %>%
+  summarize(total_pop=sum(total_pop, na.rm = TRUE),
+            tests = sum(tests, na.rm=TRUE),
+            positives = sum(positives, na.rm=TRUE),
+            deaths = sum(deaths, na.rm=TRUE)) %>%
+  mutate(tests=ifelse(city=="Detroit" | city == "Seattle", NA, tests),
+         deaths = ifelse(!(city=="Seattle" | city == "Chicago"), NA, tests)
+  ) %>%
+  mutate(pos_rate = positives/tests,
+         test_rate = tests/total_pop,
+         case_rate = (positives/total_pop)*100000,
+         death_rate = (deaths/total_pop)*100000) %>%
+  
+  mutate(pos_rate_lci = ifelse(!is.na(pos_rate), 
+                               pois.exact(positives, tests)[[4]],
+                               NA),
+         pos_rate_uci = ifelse(!is.na(pos_rate), 
+                               pois.exact(positives, tests)[[5]],
+                               NA),
+         test_rate_lci = ifelse(!is.na(test_rate), 
+                               pois.exact(tests, total_pop)[[4]],
+                               NA),
+         test_rate_uci = ifelse(!is.na(test_rate), 
+                               pois.exact(tests, total_pop)[[5]],
+                               NA),
+         case_rate_lci = ifelse(!is.na(case_rate), 
+                               (pois.exact(positives, total_pop)[[4]]*100000),
+                               NA),
+         case_rate_uci = ifelse(!is.na(case_rate), 
+                               (pois.exact(positives, total_pop)[[5]]*100000),
+                               NA),
+         death_rate_lci = ifelse(!is.na(death_rate), 
+                               (pois.exact(deaths, total_pop)[[4]]*100000),
+                               NA),
+         death_rate_uci = ifelse(!is.na(death_rate), 
+                               (pois.exact(deaths, total_pop)[[5]]*100000),
+                               NA))
+
+
+```
+
+
+Plot of all Q1 Q5 comparison of all variables in all cities
+```{r}
+ggplot(filter(quint_summaries, value=="Q1" | value=="Q5"), aes(group=city)) +
+  geom_point(aes(x=value, y=case_rate, color=city), size=1) +
+  geom_line(aes(x=value, y=case_rate, color=city, group = city), alpha=0.4, size=0.8) +
+  geom_errorbar(aes(x = value, ymin=case_rate_lci, ymax=case_rate_uci, color=city), alpha=0.2) +
+  facet_wrap(vars(var), labeller = labeller(var = 
+    c("mhi" = "Median HH Income",
+      "pct_col" = "% non-white",
+      "pct_diabetes" = "Diabetes prev",
+      "pct_essworkers" = "% essential workers",
+      "pct_hbp" = "High BP Prev",
+      "pct_new_imm" = "% Entered in last 4 yrs",
+      "pct_non_cit" = "% Non citizens",
+      "pct_overcrowded" = "% overcrowded",
+      "pct_pov" = "% in poverty",
+      "pct_old" = "% over 60 yrs",
+      "pct_transit" = "% taking transit to work",
+      "pct_unins" = "% uninsured"))) + xlab("Quintile") + ylab("Cases per 100,000") +
+  theme_minimal() 
+```
+
+
+
+```{r}
+all_data_long <- all_data %>% 
+  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
+  pivot_longer(mhi:pct_hbp, names_to="var", values_to="value") %>%
+  mutate(case_rate = (positives/total_pop)*100000) %>%
+  mutate(death_rate = (deaths/total_pop)*100000) %>%
+  mutate(pos_rate = (positives/tests))
+
+
+```
+
+
+```{r}
+ggplot(filter(all_data_long), aes(group=city)) +
+  geom_point(aes(x=value, y=case_rate, color=city), alpha=0.2, size=0.5) +
+   stat_smooth(aes(x=value, y=case_rate, color=city, group=city),
+              method="lm", se = FALSE) +
+  scale_color_manual(values=c("#FF0000", "#00A08A", "#F2AD00", "#F98400", 
+                                "#5BBCD6", "#046C9A")) +
+  facet_wrap(vars(var), scales = "free_x", labeller = labeller(var = 
+    c("mhi" = "Median HH Income",
+      "pct_col" = "% non-white",
+      "pct_diabetes" = "Diabetes prev",
+      "pct_essworkers" = "% essential workers",
+      "pct_hbp" = "High BP Prev",
+      "pct_new_imm" = "% Entered in last 4 yrs",
+      "pct_non_cit" = "% Non citizens",
+      "pct_overcrowded" = "% overcrowded",
+      "pct_pov" = "% in poverty",
+      "pct_old" = "% over 60 yrs",
+      "pct_transit" = "% taking transit to work",
+      "pct_unins" = "% uninsured"))) + xlab("Variable") + ylab("Cases per 100,000") +
+  theme_minimal() 
+```
+
+
+

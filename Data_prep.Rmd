@@ -17,8 +17,8 @@ options(scipen=10000)
 Get case data by zip, and zip lookup table
 ```{r}
 
-city_zips <- read_csv("city_zips.csv")
-cases_zip_data <- read_csv("All_cities_zip.csv") %>% select(1:5) 
+city_zips <- read_csv("Data/zip_lookup.csv")
+cases_zip_data <- read_csv("Data/All_cities_zip.csv") %>% select(1:5) 
 ```
 
 Get ACS estimates for each ZCTA involved
@@ -157,11 +157,13 @@ I dowloaded the state files from the RWJF website, but they also have an API
 Used prevalence of high blood pressure and diabetes from their data
 
 The 500 Cities data is at census tract level, so need the ZCTA - CT relationship file from the census website: https://www.census.gov/geographies/reference-files/2010/geo/relationship-files.html#par_textimage_674173622  (zcta_tract_rel_10.csv)
+
+The population weighted mean is taken to convert the CT-level data to ZCTA-level data
 ```{r}
 
-geog_file <- read_csv("zcta_tract_rel_10.csv") %>% select(ZCTA5, GEOID) %>% mutate(GEOID=as.character(GEOID))
+geog_file <- read_csv("Data/zcta_tract_rel_10.csv") %>% select(ZCTA5, GEOID) %>% mutate(GEOID=as.character(GEOID))
 health_data_raw <- do.call(rbind,
-          lapply(paste0("Health_data/", (list.files(path = "Health_data/"))), read.csv)) %>%
+          lapply(paste0("Data/Health_data/", (list.files(path = "Data/Health_data/"))), read.csv)) %>%
   filter(city_name %in% c("New York", "Chicago", "Seattle", "Philadelphia",  "Detroit", "Boston")) %>%
   filter(metric_number %in% c(6,9)) %>%
   mutate(stcotr_fips = as.character(stcotr_fips)) %>%
@@ -181,7 +183,7 @@ health_data <- health_data_raw %>%
   
 ```
 
-Merge data. 
+Merge data. For Boston, where cases are reported for some zipcodes in an aggregated way, the population weighted mean of the variables are taken.
 ```{r}
 all_data <- covar_zip_data %>% 
   left_join(city_zips, by=c("GEOID"="ZCTA5")) %>% filter(GEOID != "98195") %>%
@@ -199,26 +201,14 @@ all_data <- covar_zip_data %>%
             total_pop = sum(unique(total_pop), na.rm = TRUE)) %>%
   left_join(health_data, by=c("zip")) %>% 
   filter(!is.na(city_name)) %>%
-  left_join(cases_zip_data, by="zip")
+  left_join(cases_zip_data, by=c("zip"="custom_zip"))
 ```
 
-Group City, and create quintiles of each variable
-```{r}
-all_data_quint <- all_data %>% ungroup() %>%
-  group_by(city_name) %>% 
-  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
-  mutate_at(vars(mhi:pct_hbp), ~factor(findInterval(., c(-Inf,
-                               quantile(., probs=c(0.2, 0.4, 0.6, 0.8), na.rm = TRUE), Inf)),
-                               labels=c("Q1","Q2","Q3","Q4", "Q5"))) %>%
-  pivot_longer(mhi:pct_hbp, names_to="var", values_to="value")
-
-
-```
 
 Write data
 
 ```{r}
-
+write_csv(all_data, "Data/data_May3.csv")
 ```
 
 
