@@ -185,3 +185,13 @@ model_all = glmer(positives ~ 1 + pct_col + pct_diabetes + pct_essworkers + pct_
 summary(model_all)
 ```
 
+```{r}
+data_export <- all_data %>% ungroup() %>%
+  group_by(city_name) %>% 
+  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths)
+```
+
+```{r}
+write_csv(data_export, "~/COVID_19_Research/US_cities_data.csv")
+```
+
