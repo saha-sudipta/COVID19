@@ -30,6 +30,7 @@ Get ACS estimates for each ZCTA involved
 % elderly
 % lacking health insurance
 % public transit
+% unemployed
 
 Get list of variables from ACS 2014-18 at ZCTA level.
 ```{r}
@@ -75,8 +76,10 @@ vars <- c(# Essential industry workers
           "B08006_001","B08006_008",
           # health insurance (uninsured)
           "B27010_001","B27010_017", "B27010_033", "B27010_050", "B27010_066",
-          #Total, #Entered after 2010, foreign born not a citizen
-          "B05005_001", "B05005_006",
+          #Total, #Entered after 1990, foreign born
+          "B05001_001", "B05005_004", "B05005_009", "B05005_014",
+          #Total, #Unemployed,
+          "C18120_001", "C18120_006",
           #Total, #Not citizen
           "B05001_001", "B05001_006"
           ) 
@@ -143,8 +146,10 @@ covar_zip_data <- covar_zip_data_raw %>%
           B01001_042, B01001_043, B01001_044, B01001_045,
           B01001_046, B01001_047, B01001_048, B01001_049)/B01003_001),
          
-         pct_new_imm=B05005_006/B05005_001,
+         pct_new_imm=(B05005_004+B05005_009+B05005_014)/B05005_001,
          pct_non_cit=B05001_006/B05001_001,
+         
+         pct_unemp= C18120_006/C18120_001,
          
          GEOID=as.character(GEOID)) %>% 
   select(GEOID, mhi, pct_pov, pct_col, total_pop, pct_unins, pct_essworkers, pct_overcrowded, pct_transit,
