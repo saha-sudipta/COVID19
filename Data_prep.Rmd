@@ -30,6 +30,7 @@ Get ACS estimates for each ZCTA involved
 % elderly
 % lacking health insurance
 % public transit
+% unemployed
 
 Get list of variables from ACS 2014-18 at ZCTA level.
 ```{r}
@@ -74,9 +75,11 @@ vars <- c(# Essential industry workers
           # public transit excluding taxicab
           "B08006_001","B08006_008",
           # health insurance (uninsured)
-          "B27010_001","B27010_017", "B27010_033", "B27010_050", "B27010_066",
-          #Total, #Entered after 2010, foreign born not a citizen
-          "B05005_001", "B05005_006",
+          #"B27010_001","B27010_017", "B27010_033", "B27010_050", "B27010_066",
+          #Total, #Entered after 1990, foreign born
+          "B05005_001", "B05005_004", "B05005_009", "B05005_014",
+          #Total, #Unemployed,
+          "C18120_001", "C18120_006",
           #Total, #Not citizen
           "B05001_001", "B05001_006"
           ) 
@@ -126,7 +129,7 @@ covar_zip_data <- covar_zip_data_raw %>%
          
          total_pop = B01003_001,
          
-         pct_unins=sum(c(B27010_017, B27010_033, B27010_050, B27010_066))/B27010_001,
+         #pct_unins=sum(c(B27010_017, B27010_033, B27010_050, B27010_066))/B27010_001,
          
          pct_essworkers=sum(c(C24010_012, C24010_016, C24010_020, C24010_021, C24010_024, C24010_025,
           C24010_030, C24010_034, 
@@ -143,12 +146,14 @@ covar_zip_data <- covar_zip_data_raw %>%
           B01001_042, B01001_043, B01001_044, B01001_045,
           B01001_046, B01001_047, B01001_048, B01001_049)/B01003_001),
          
-         pct_new_imm=B05005_006/B05005_001,
+         pct_new_imm=(B05005_004+B05005_009+B05005_014)/B05005_001,
          pct_non_cit=B05001_006/B05001_001,
          
+         pct_unemp= C18120_006/C18120_001,
+         
          GEOID=as.character(GEOID)) %>% 
-  select(GEOID, mhi, pct_pov, pct_col, total_pop, pct_unins, pct_essworkers, pct_overcrowded, pct_transit,
-         pct_old, pct_new_imm, pct_non_cit)
+  select(GEOID, mhi, pct_pov, pct_col, total_pop, pct_essworkers, pct_overcrowded, pct_transit,
+         pct_old, pct_new_imm, pct_non_cit, pct_unemp)
 ```
 
 Get health data downloaded from RWJF City Health Dashboard website (500 Cities). 
@@ -191,13 +196,14 @@ all_data <- covar_zip_data %>%
   summarise(mhi = weighted.mean(mhi, total_pop, na.rm = TRUE),
             pct_pov = weighted.mean(pct_pov, total_pop, na.rm = TRUE),
             pct_col = weighted.mean(pct_col, total_pop, na.rm = TRUE),
-            pct_unins = weighted.mean(pct_unins, total_pop, na.rm = TRUE),
+            #pct_unins = weighted.mean(pct_unins, total_pop, na.rm = TRUE),
             pct_essworkers = weighted.mean(pct_essworkers, total_pop, na.rm = TRUE),
             pct_overcrowded = weighted.mean(pct_overcrowded, total_pop, na.rm = TRUE),
             pct_transit = weighted.mean(pct_transit, total_pop, na.rm = TRUE),
             pct_old = weighted.mean(pct_old, total_pop, na.rm = TRUE),
             pct_new_imm = weighted.mean(pct_new_imm, total_pop, na.rm = TRUE),
             pct_non_cit = weighted.mean(pct_non_cit, total_pop, na.rm = TRUE),
+            pct_unemp = weighted.mean(pct_unemp, total_pop, na.rm = TRUE),
             total_pop = sum(unique(total_pop), na.rm = TRUE)) %>%
   left_join(health_data, by=c("zip")) %>% 
   filter(!is.na(city_name)) %>%

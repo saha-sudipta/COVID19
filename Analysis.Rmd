@@ -23,7 +23,7 @@ Group City, and create quintiles of each variable
 ```{r}
 all_data_quint <- all_data %>% ungroup() %>%
   group_by(city_name) %>% 
-  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
+  select(city, zip:pct_unemp, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
   mutate_at(vars(mhi:pct_hbp), ~factor(findInterval(., c(-Inf,
                                quantile(., probs=c(0.2, 0.4, 0.6, 0.8), na.rm = TRUE), Inf)),
                                labels=c("Q1","Q2","Q3","Q4", "Q5"))) %>%
@@ -83,19 +83,21 @@ ggplot(filter(quint_summaries, value=="Q1" | value=="Q5"), aes(group=city)) +
   geom_point(aes(x=value, y=case_rate, color=city), size=1) +
   geom_line(aes(x=value, y=case_rate, color=city, group = city), alpha=0.4, size=0.8) +
   geom_errorbar(aes(x = value, ymin=case_rate_lci, ymax=case_rate_uci, color=city), alpha=0.2) +
+  scale_color_manual(values=c("#FF0000", "#00A08A", "#F2AD00", "#F98400", 
+                                "#5BBCD6", "#046C9A")) +
   facet_wrap(vars(var), labeller = labeller(var = 
     c("mhi" = "Median HH Income",
       "pct_col" = "% non-white",
       "pct_diabetes" = "Diabetes prev",
       "pct_essworkers" = "% essential workers",
       "pct_hbp" = "High BP Prev",
-      "pct_new_imm" = "% Entered in last 4 yrs",
+      "pct_new_imm" = "% Entered in since 1990",
       "pct_non_cit" = "% Non citizens",
       "pct_overcrowded" = "% overcrowded",
       "pct_pov" = "% in poverty",
       "pct_old" = "% over 60 yrs",
       "pct_transit" = "% taking transit to work",
-      "pct_unins" = "% uninsured"))) + xlab("Quintile") + ylab("Cases per 100,000") +
+      "pct_unemp" = "% unemployed"))) + xlab("Quintile") + ylab("Cases per 100,000") +
   theme_minimal() 
 ```
 
@@ -103,7 +105,7 @@ Create long format of all data
 
 ```{r}
 all_data_long <- all_data %>% 
-  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
+  select(city, zip:pct_unemp, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
   pivot_longer(mhi:pct_hbp, names_to="var", values_to="value") %>%
   mutate(case_rate = (positives/total_pop)*100000) %>%
   mutate(death_rate = (deaths/total_pop)*100000) %>%
@@ -126,13 +128,13 @@ ggplot(filter(all_data_long), aes(group=city)) +
       "pct_diabetes" = "Diabetes prev",
       "pct_essworkers" = "% essential workers",
       "pct_hbp" = "High BP Prev",
-      "pct_new_imm" = "% Entered in last 4 yrs",
+      "pct_new_imm" = "% Entered since 1990",
       "pct_non_cit" = "% Non citizens",
       "pct_overcrowded" = "% overcrowded",
       "pct_pov" = "% in poverty",
       "pct_old" = "% over 60 yrs",
       "pct_transit" = "% taking transit to work",
-      "pct_unins" = "% uninsured"))) + xlab("Variable") + ylab("Cases per 100,000") +
+      "pct_unemp" = "% unemployed"))) + xlab("Variable") + ylab("Cases per 100,000") +
   theme_minimal() 
 ```
 
@@ -140,7 +142,7 @@ Create dataset to fit multilevel models
 ```{r}
 model_data <- all_data %>% ungroup() %>%
   group_by(city_name) %>% 
-  select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
+  select(city, zip:pct_unemp, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths) %>%
   mutate_at(vars(mhi:pct_hbp), ~factor(findInterval(., c(-Inf,
                                quantile(., probs=c(0.2, 0.4, 0.6, 0.8), na.rm = TRUE), Inf)),
                                labels=c("Q1","Q2","Q3","Q4", "Q5")))
