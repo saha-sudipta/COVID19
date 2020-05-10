@@ -75,9 +75,15 @@ vars <- c(# Essential industry workers
           # public transit excluding taxicab
           "B08006_001","B08006_008",
           # health insurance (uninsured)
+<<<<<<< HEAD
           #"B27010_001","B27010_017", "B27010_033", "B27010_050", "B27010_066",
           #Total, #Entered after 1990, foreign born
           "B05005_001", "B05005_004", "B05005_009", "B05005_014",
+=======
+          "B27010_001","B27010_017", "B27010_033", "B27010_050", "B27010_066",
+          #Total, #Entered after 1990, foreign born
+          "B05001_001", "B05005_004", "B05005_009", "B05005_014",
+>>>>>>> f19b816ac72cac811e6028188d113aa76300f994
           #Total, #Unemployed,
           "C18120_001", "C18120_006",
           #Total, #Not citizen

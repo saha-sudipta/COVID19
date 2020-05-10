@@ -192,7 +192,7 @@ data_export <- all_data %>% ungroup() %>%
   group_by(city_name) %>% 
   select(city, zip:pct_non_cit, pct_diabetes, pct_hbp, total_pop, tests, positives, deaths)
 ```
-
+Writing file with data
 ```{r}
 write_csv(data_export, "~/COVID_19_Research/US_cities_data.csv")
 ```
